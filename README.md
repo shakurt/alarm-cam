@@ -1,109 +1,36 @@
-# alarm-cam
+# Webcam Motion Detection System
 
-A lightweight browser-based motion detection system that uses your webcam to trigger an alarm when movement is detected.  
-Built with **vanilla JavaScript**, HTML, and CSS — no external libraries required.
+A simple AI-based motion detection system using computer vision techniques. Built for educational purposes with vanilla JavaScript.
 
----
+## Overview
+This project demonstrates basic **computer vision** and **motion detection** algorithms using webcam input. The system analyzes video frames in real-time to detect movement and triggers an audio alarm.
 
-## 🚀 Features
-- **Real-time video capture** from your webcam  
-- **Grayscale conversion** for efficient frame comparison
-- **Pixel-by-pixel motion detection** with configurable sensitivity
-- **Audio alarm** with Web Audio API (sine wave beep)
-- **Optimized canvas rendering** with `willReadFrequently` context
-- **Automatic processing pause** after alarm trigger
-- Lightweight and runs fully in the **browser**
+## How It Works
+1. **Frame Capture**: Gets video frames from webcam using HTML5 Canvas
+2. **Grayscale Conversion**: Converts color frames to grayscale for processing
+3. **Frame Comparison**: Compares current frame with previous frame pixel-by-pixel
+4. **Motion Detection**: Counts changed pixels above threshold to detect motion
+5. **Alarm Trigger**: Plays audio alert when motion exceeds sensitivity level
 
----
+## Algorithm Details
+- **Grayscale Formula**: `0.299*R + 0.587*G + 0.114*B`
+- **Pixel Threshold**: 30 intensity units difference
+- **Motion Sensitivity**: 0.5% of total pixels must change
+- **Processing Rate**: ~15 FPS
 
-## 📂 Project Structure
-```
-alarm-cam/
-│
-├── index.html    # Main HTML page
-├── style.css     # Styling for UI  
-├── app.js        # Core logic (video capture, processing, motion detection)
-└── README.md     # Project description
-```
-
----
-
-## 🛠️ How It Works
-1. **Video Capture**: Uses `getUserMedia()` to access webcam stream
-2. **Canvas Processing**: Draws video frames onto HTML5 canvas at ~15 FPS
-3. **Grayscale Conversion**: Converts RGBA pixels to grayscale using luminance formula: `0.299*R + 0.587*G + 0.114*B`
-4. **Motion Detection**: Compares current frame with previous frame pixel-by-pixel
-5. **Threshold Analysis**: Triggers alarm when >0.5% of pixels change by >30 intensity units
-6. **Audio Alarm**: Plays 880Hz sine wave beep using Web Audio API
-7. **Auto-pause**: Stops processing and pauses video after alarm
-
----
-
-## ⚙️ Configuration
-You can adjust these parameters in `app.js`:
-
-```javascript
-const PROCESS_FPS = 15;              // Processing frame rate
-const PIXEL_DIFF_THRESHOLD = 30;     // Pixel change threshold (0-255)
-const SENSITIVITY_RATIO = 0.005;     // Motion sensitivity (0.5% of pixels)
-```
-
----
-
-## 📦 Installation & Usage
-
-### Method 1: Local File
-1. Clone this repository:
-   ```bash
-   git clone https://github.com/shakurt/alarm-cam.git
-   cd alarm-cam
-   ```
+## Usage
+1. Clone the repository
 2. Open `index.html` in your browser
-3. Allow camera access when prompted
-4. Move in front of your webcam → alarm triggers
+3. Allow camera access
+4. Move in front of camera to trigger alarm
 
-### Method 2: Local Server (Recommended)
-```bash
-# Using Python
-python -m http.server 8000
+## Files
+- `index.html` - Main webpage
+- `app.js` - Motion detection algorithm
+- `style.css` - Basic styling
 
-# Using Node.js
-npx serve .
-
-# Using Live Server (VS Code extension)
-# Right-click index.html → "Open with Live Server"
-```
-
----
-
-## 🔧 Technical Details
-- **Canvas Context**: Uses `willReadFrequently: true` for optimized `getImageData()` calls
-- **Memory Management**: Reuses `Uint8ClampedArray` for grayscale conversion
-- **Processing Loop**: Combines `setTimeout` and `requestAnimationFrame` for smooth performance
-- **Error Handling**: Graceful fallback to alert if Web Audio API fails
-- **Stream Management**: Properly handles video events (play/pause/ended)
-
----
-
-## 🔮 Future Improvements
-- ✅ ~~Add audio alarm (beep sound)~~ - **Implemented**
-- [ ] Motion detection zones (ignore specific areas)
-- [ ] Sensitivity adjustment UI controls  
-- [ ] Motion event logging with timestamps
-- [ ] Email/SMS notifications
-- [ ] Advanced algorithms (optical flow, background subtraction)
-- [ ] Mobile app deployment (PWA)
-- [ ] Multi-camera support
-
----
-
-## 🐛 Troubleshooting
-- **No camera access**: Ensure HTTPS or localhost for `getUserMedia()`
-- **Performance issues**: Reduce `PROCESS_FPS` or increase `PIXEL_DIFF_THRESHOLD`
-- **False alarms**: Increase `SENSITIVITY_RATIO` or `PIXEL_DIFF_THRESHOLD`
-- **No audio**: Check browser audio permissions and volume
-
----
-
-## 📄 License
-MIT License – free to use and modify.
+## AI/CV Concepts Demonstrated
+- **Image Processing**: Pixel manipulation and grayscale conversion
+- **Frame Differencing**: Basic motion detection technique
+- **Threshold-based Detection**: Binary classification of motion/no-motion
+- **Real-time Processing**: Live video stream analysis
