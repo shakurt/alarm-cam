@@ -1,0 +1,15 @@
+# Dependencies
+node_modules
+
+# Build outputs
+dist
+build
+
+# Generated files
+*.min.js
+*.min.css
+
+# Config files
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
