@@ -1,19 +1,13 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Alarm Camera</title>
-  <link rel="stylesheet" href="style.css">
-</head>
-<body>
-  <h2>Getting Image from Webcam</h2>
-
-<!-- For Getting Raw Video From Camera -->
-  <video id="video" autoplay playsinline></video>
-
-  <!-- For Processing Video -->
-  <canvas id="canvas"></canvas>
-
-  <script src="app.js"></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/fav.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Alarm Camera</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>
