@@ -1,4 +1,4 @@
-import Camera from "@/components/Camera";
+import Camera from "@/components/camera/Camera";
 import Login from "@/components/Login";
 import { useUser } from "@/context/userContext";
 
