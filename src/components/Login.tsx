@@ -1,10 +1,10 @@
 import { useState } from "react";
 
+import LoginImage from "@/assets/login.svg";
 import Button from "@/components/UI/Button";
 import Checkbox from "@/components/UI/Checkbox";
 import TextInput from "@/components/UI/TextInput";
 import { useUser } from "@/context/userContext";
-import LoginImage from "@/assets/login.svg";
 
 const Login = () => {
   const { setUserInfo } = useUser();
