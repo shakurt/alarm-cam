@@ -1,6 +1,5 @@
-// src/components/camera/DetectionList.tsx
-import React from "react";
 import type { Detection } from "@/types";
+import Chip from "../UI/Chip";
 
 interface Props {
   detections: Detection[];
@@ -8,84 +7,54 @@ interface Props {
 
 const DetectionList: React.FC<Props> = ({ detections }) => {
   return (
-    <div
-      style={{
-        maxHeight: 420,
-        overflowY: "auto",
-        border: "1px solid #ddd",
-        padding: 8,
-      }}
-    >
-      <h3>Detections ({detections.length})</h3>
-      {detections.map((d) => (
+    <div className="max-h-[420px] overflow-y-auto border border-gray-300 p-2">
+      <h3 className="text-center">Detections ({detections.length})</h3>
+      {detections.length > 0 && <hr className="my-2" />}
+      {detections.map((detection) => (
         <div
-          key={d.id}
-          style={{
-            display: "flex",
-            gap: 12,
-            padding: 8,
-            borderBottom: "1px solid #eee",
-          }}
+          key={detection.id}
+          className="flex flex-col gap-3 border-b border-gray-300 p-2 md:flex-row"
         >
-          <div style={{ minWidth: 180 }}>
-            <div style={{ fontSize: 12 }}>
-              {new Date(d.timestamp).toLocaleString()}
+          <div className="w-full md:max-w-[200px] md:min-w-[200px]">
+            <span className="block text-center text-sm md:text-start">
+              {new Date(detection.timestamp).toLocaleString()}
+            </span>
+            <div className="mt-2 flex flex-wrap gap-x-2 gap-y-2 text-sm text-gray-400">
+              {detection.motion && <Chip>Motion</Chip>}
+              {detection.suddenLight && <Chip>Sudden light</Chip>}
+              <Chip>ratio: {(detection.ratio * 100).toFixed(2)}%</Chip>
+              <Chip>meanDiff: {detection.meanDiff.toFixed(1)}</Chip>
+              {detection.bbox && (
+                <>
+                  <Chip>x: {detection.bbox.x}</Chip>
+                  <Chip>y: {detection.bbox.y}</Chip>
+                  <Chip>w: {detection.bbox.w}</Chip>
+                  <Chip>h: {detection.bbox.h}</Chip>
+                </>
+              )}
             </div>
-            <div style={{ fontSize: 12, color: "#666" }}>
-              {d.motion ? "Motion" : ""}{" "}
-              {d.suddenLight ? " / Sudden light" : ""}
-            </div>
-            <div style={{ fontSize: 11, color: "#999" }}>
-              ratio: {(d.ratio * 100).toFixed(2)}% meanDiff:{" "}
-              {d.meanDiff.toFixed(1)}
-            </div>
-            {d.bbox && (
-              <div style={{ fontSize: 11, color: "#999" }}>
-                area: x:{d.bbox.x} y:{d.bbox.y} w:{d.bbox.w} h:{d.bbox.h}
-              </div>
-            )}
           </div>
 
-          <div style={{ display: "flex", gap: 8 }}>
+          <div className="grid grid-cols-2 gap-2 md:flex md:flex-1 md:justify-center">
             <img
-              src={d.before}
+              src={detection.before}
               alt="before"
-              style={{
-                width: 120,
-                height: 90,
-                objectFit: "cover",
-                border: "1px solid #ccc",
-              }}
+              className="h-[90px] w-full border border-gray-300 object-cover md:w-[120px]"
             />
             <img
-              src={d.after}
+              src={detection.after}
               alt="after"
-              style={{
-                width: 120,
-                height: 90,
-                objectFit: "cover",
-                border: "1px solid #ccc",
-              }}
+              className="h-[90px] w-full border border-gray-300 object-cover md:w-[120px]"
             />
             <img
-              src={d.background}
+              src={detection.background}
               alt="background"
-              style={{
-                width: 120,
-                height: 90,
-                objectFit: "cover",
-                border: "1px solid #ccc",
-              }}
+              className="h-[90px] w-full border border-gray-300 object-cover md:w-[120px]"
             />
             <img
-              src={d.marked ?? d.after}
+              src={detection.marked ?? detection.after}
               alt="marked"
-              style={{
-                width: 120,
-                height: 90,
-                objectFit: "cover",
-                border: "2px solid #f55",
-              }}
+              className="h-[90px] w-full object-cover md:w-[120px]"
             />
           </div>
         </div>

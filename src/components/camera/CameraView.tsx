@@ -1,4 +1,3 @@
-// src/components/camera/CameraView.tsx
 import React, { useEffect, useRef, useState } from "react";
 import type { CameraViewProps, Detection } from "@/types";
 import playBeep from "@/utils/play-beep";
@@ -9,24 +8,20 @@ import {
   bboxFromMask,
   createZoomedDataURLFromCanvas,
 } from "@/utils/frames";
+import Chip from "@/components/UI/Chip";
+import Card from "../UI/Card";
 
-/**
- Props expected:
-  - onDetection(detection)
-  - enabled (boolean)  // parent handles 5s startup countdown
-  - resetBgSignal? (number) // when incremented by parent => reset background now
-  - onPauseChange?(paused, remainingMs?) => parent shows pause timer
-*/
-
+// Processing configuration
 const PROCESS_FPS = 10;
 const ALPHA_BG = 0.02;
 const EMA_ALPHA = 0.05;
-const DEFAULT_SENSITIVITY_FACTOR = 1.8;
+const SENSITIVITY_FACTOR = 1.8;
 const PAUSE_AFTER_DETECTION_MS = 3000;
 const MOTION_CONFIRM_FRAMES = 2;
 
 type Props = CameraViewProps & {
   resetBgSignal?: number;
+  triggerResetBackground?: () => void;
   onPauseChange?: (paused: boolean, remainingMs?: number) => void;
 };
 
@@ -35,93 +30,106 @@ const CameraView: React.FC<Props> = ({
   enabled,
   resetBgSignal = 0,
   onPauseChange,
+  triggerResetBackground,
 }) => {
+  // DOM refs
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null); // processing canvas
-  const captureCanvasRef = useRef<HTMLCanvasElement | null>(null); // for dataURL creation and zoom
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const captureCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // models/state refs
+  // Algorithm state
   const bgRef = useRef<Uint8ClampedArray | null>(null);
   const prevGrayRef = useRef<Uint8ClampedArray | null>(null);
+  const emaAvgDiffRef = useRef(0);
+  const emaMeanDiffRef = useRef(0);
+  const motionCounterRef = useRef(0);
+  const foregroundMaskRef = useRef<Uint8Array | null>(null);
+  const maskExpiryRef = useRef(0);
+
+  // Processing loop state
   const runningRef = useRef(false);
   const rafRef = useRef<number | null>(null);
   const lastProcessTimeRef = useRef(0);
 
-  const emaAvgAbsDiffRef = useRef<number>(0);
-  const emaMeanDiffRef = useRef<number>(0);
-
-  const lastForegroundMaskRef = useRef<Uint8Array | null>(null);
-  const maskExpiryAtRef = useRef<number>(0);
-
-  const motionCounterRef = useRef(0);
-
+  // Pause state
   const isPausedRef = useRef(false);
   const pauseTimeoutRef = useRef<number | null>(null);
   const pauseIntervalRef = useRef<number | null>(null);
-  const pauseEndAtRef = useRef<number>(0);
+  const pauseEndRef = useRef(0);
 
+  // UI state
   const [initialBgDataUrl, setInitialBgDataUrl] = useState<string | null>(null);
-  const lastResetRef = useRef<number>(resetBgSignal);
+  const lastResetSignalRef = useRef(resetBgSignal);
 
-  // start camera
+  // Initialize camera on mount
   useEffect(() => {
     let mounted = true;
-    async function start() {
+
+    async function initCamera() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: true,
           audio: false,
         });
+
         if (!mounted) return;
-        const v = videoRef.current!;
-        v.srcObject = stream;
-        await v.play();
-        v.addEventListener("loadedmetadata", () => {
-          const w = v.videoWidth || 640;
-          const h = v.videoHeight || 480;
+
+        const video = videoRef.current;
+        if (!video) return;
+
+        video.srcObject = stream;
+        await video.play();
+
+        video.addEventListener("loadedmetadata", () => {
+          const width = video.videoWidth || 640;
+          const height = video.videoHeight || 480;
+
           if (canvasRef.current) {
-            canvasRef.current.width = w;
-            canvasRef.current.height = h;
+            canvasRef.current.width = width;
+            canvasRef.current.height = height;
           }
           if (captureCanvasRef.current) {
-            captureCanvasRef.current.width = w;
-            captureCanvasRef.current.height = h;
+            captureCanvasRef.current.width = width;
+            captureCanvasRef.current.height = height;
           }
         });
-      } catch (e) {
-        console.error("Camera access error:", e);
+      } catch (error) {
+        console.error("Camera access error:", error);
       }
     }
-    start();
+
+    initCamera();
+
     return () => {
       mounted = false;
       stopProcessing();
-      stopStream();
+      stopCameraStream();
     };
   }, []);
 
-  // enabled toggling (parent handles start countdown; here we just start/stop processing)
+  // Start/stop processing when enabled changes
   useEffect(() => {
-    if (enabled) startProcessing();
-    else stopProcessing();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (enabled) {
+      startProcessing();
+    } else {
+      stopProcessing();
+    }
   }, [enabled]);
 
-  // listen reset signal
+  // Handle reset background signal
   useEffect(() => {
-    if (resetBgSignal !== lastResetRef.current) {
-      lastResetRef.current = resetBgSignal;
-      doResetBackground();
+    if (resetBgSignal !== lastResetSignalRef.current) {
+      lastResetSignalRef.current = resetBgSignal;
+      resetBackground();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetBgSignal]);
 
-  function stopStream() {
-    const v = videoRef.current;
-    if (v && v.srcObject) {
-      const stream = v.srcObject as MediaStream;
-      stream.getTracks().forEach((t) => t.stop());
-      v.srcObject = null;
+  function stopCameraStream() {
+    const video = videoRef.current;
+    if (video?.srcObject) {
+      const stream = video.srcObject as MediaStream;
+      stream.getTracks().forEach((track) => track.stop());
+      video.srcObject = null;
     }
   }
 
@@ -134,47 +142,56 @@ const CameraView: React.FC<Props> = ({
 
   function stopProcessing() {
     runningRef.current = false;
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    rafRef.current = null;
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
     clearPauseTimers();
   }
 
   function loop(now: number) {
     if (!runningRef.current) return;
+
     const elapsed = now - lastProcessTimeRef.current;
     const interval = 1000 / PROCESS_FPS;
+
     if (elapsed >= interval) {
-      processOnce();
+      processFrame();
       lastProcessTimeRef.current = now;
     }
+
     rafRef.current = requestAnimationFrame(loop);
   }
 
-  function updateEMA(emaRef: React.MutableRefObject<number>, value: number) {
-    if (emaRef.current === 0) emaRef.current = value;
-    else emaRef.current = emaRef.current * (1 - EMA_ALPHA) + value * EMA_ALPHA;
+  function updateEMA(emaRef: React.MutableRefObject<number>, newValue: number) {
+    if (emaRef.current === 0) {
+      emaRef.current = newValue;
+    } else {
+      emaRef.current = emaRef.current * (1 - EMA_ALPHA) + newValue * EMA_ALPHA;
+    }
     return emaRef.current;
   }
 
-  function captureGrayToCanvas(
-    grayArr: Uint8ClampedArray,
+  function convertGrayToCanvas(
+    gray: Uint8ClampedArray,
     width: number,
     height: number,
-    c: HTMLCanvasElement | null
+    canvas: HTMLCanvasElement | null
   ) {
-    if (!c) return;
-    const ctx = c.getContext("2d");
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    const img = ctx.createImageData(width, height);
+
+    const imageData = ctx.createImageData(width, height);
     let idx = 0;
-    for (let i = 0; i < grayArr.length; i++) {
-      const v = grayArr[i];
-      img.data[idx++] = v;
-      img.data[idx++] = v;
-      img.data[idx++] = v;
-      img.data[idx++] = 255;
+    for (let i = 0; i < gray.length; i++) {
+      const value = gray[i];
+      imageData.data[idx++] = value;
+      imageData.data[idx++] = value;
+      imageData.data[idx++] = value;
+      imageData.data[idx++] = 255;
     }
-    ctx.putImageData(img, 0, 0);
+    ctx.putImageData(imageData, 0, 0);
   }
 
   function clearPauseTimers() {
@@ -187,154 +204,167 @@ const CameraView: React.FC<Props> = ({
       pauseIntervalRef.current = null;
     }
     isPausedRef.current = false;
-    pauseEndAtRef.current = 0;
-    if (onPauseChange) onPauseChange(false);
+    pauseEndRef.current = 0;
+    onPauseChange?.(false);
   }
 
-  function startPauseWithCountdown(ms: number) {
+  function startPause(duration: number) {
     isPausedRef.current = true;
-    pauseEndAtRef.current = Date.now() + ms;
-    if (onPauseChange) onPauseChange(true, ms);
+    pauseEndRef.current = Date.now() + duration;
+
+    onPauseChange?.(true, duration);
+
     pauseIntervalRef.current = window.setInterval(() => {
-      const rem = Math.max(0, pauseEndAtRef.current - Date.now());
-      if (onPauseChange) onPauseChange(true, rem);
+      const remaining = Math.max(0, pauseEndRef.current - Date.now());
+      onPauseChange?.(true, remaining);
     }, 200);
+
     pauseTimeoutRef.current = window.setTimeout(() => {
       clearPauseTimers();
-    }, ms);
+    }, duration);
   }
 
-  async function doResetBackground() {
-    const v = videoRef.current;
-    const c = canvasRef.current;
-    if (!v || !c) return;
-    const ctx = c.getContext("2d", { willReadFrequently: true });
+  function resetBackground() {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
+
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) return;
-    ctx.drawImage(v, 0, 0, c.width, c.height);
-    const frame = ctx.getImageData(0, 0, c.width, c.height);
-    const currGray = getGrayFromImageData(frame);
-    bgRef.current = new Uint8ClampedArray(currGray);
-    // reset masks/counters
-    lastForegroundMaskRef.current = null;
-    maskExpiryAtRef.current = 0;
+
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const currentGray = getGrayFromImageData(frame);
+
+    bgRef.current = new Uint8ClampedArray(currentGray);
+    foregroundMaskRef.current = null;
+    maskExpiryRef.current = 0;
     prevGrayRef.current = null;
-    // also update the "initial background" display (user wanted initial to update on reset)
+
     if (captureCanvasRef.current) {
-      captureGrayToCanvas(
-        currGray,
-        c.width,
-        c.height,
+      convertGrayToCanvas(
+        currentGray,
+        canvas.width,
+        canvas.height,
         captureCanvasRef.current
       );
       setInitialBgDataUrl(captureCanvasRef.current.toDataURL("image/png"));
     }
   }
 
-  const processOnce = () => {
+  function processFrame() {
     if (isPausedRef.current) return;
-    const v = videoRef.current;
-    const c = canvasRef.current;
-    if (!v || !c || v.paused || v.ended) return;
-    const ctx = c.getContext("2d", { willReadFrequently: true });
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || video.paused || video.ended) return;
+
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) return;
-    const w = c.width;
-    const h = c.height;
-    if (!w || !h) return;
 
-    // draw current frame
-    ctx.drawImage(v, 0, 0, w, h);
-    const frame = ctx.getImageData(0, 0, w, h);
-    const currGray = getGrayFromImageData(frame);
+    const width = canvas.width;
+    const height = canvas.height;
+    if (!width || !height) return;
 
-    const mean = meanBrightness(currGray);
-    const prevGray = prevGrayRef.current;
-    const prevMean = prevGray ? meanBrightness(prevGray) : mean;
-    const meanDiff = Math.abs(mean - prevMean);
+    // Get current frame
+    ctx.drawImage(video, 0, 0, width, height);
+    const frameData = ctx.getImageData(0, 0, width, height);
+    const currentGray = getGrayFromImageData(frameData);
 
-    // init background if missing
+    // Calculate brightness statistics
+    const currentMean = meanBrightness(currentGray);
+    const previousGray = prevGrayRef.current;
+    const previousMean = previousGray
+      ? meanBrightness(previousGray)
+      : currentMean;
+    const meanDiff = Math.abs(currentMean - previousMean);
+
+    // Initialize background if needed
     if (!bgRef.current) {
-      bgRef.current = new Uint8ClampedArray(currGray);
-      // initial bg data url
+      bgRef.current = new Uint8ClampedArray(currentGray);
       if (!initialBgDataUrl && captureCanvasRef.current) {
-        captureGrayToCanvas(bgRef.current, w, h, captureCanvasRef.current);
+        convertGrayToCanvas(
+          bgRef.current,
+          width,
+          height,
+          captureCanvasRef.current
+        );
         setInitialBgDataUrl(captureCanvasRef.current.toDataURL("image/png"));
       }
     }
 
-    const bg = bgRef.current;
-    const total = currGray.length;
+    const background = bgRef.current;
+    const totalPixels = currentGray.length;
 
-    // avg absolute diff to bg
-    let sumAbs = 0;
-    for (let i = 0; i < total; i++) sumAbs += Math.abs(currGray[i] - bg[i]);
-    const avgAbsDiff = sumAbs / total;
+    // Calculate average absolute difference from background
+    let sumAbsDiff = 0;
+    for (let i = 0; i < totalPixels; i++) {
+      sumAbsDiff += Math.abs(currentGray[i] - background[i]);
+    }
+    const avgAbsDiff = sumAbsDiff / totalPixels;
 
-    const emaAvg = updateEMA(emaAvgAbsDiffRef, avgAbsDiff);
+    // Update exponential moving averages
+    const emaAvg = updateEMA(emaAvgDiffRef, avgAbsDiff);
     const emaMean = updateEMA(emaMeanDiffRef, meanDiff);
 
-    const adaptivePixelThreshold = Math.max(8, Math.round(emaAvg * 2.5));
-    const adaptiveSensitivityRatio = Math.min(
+    // Calculate adaptive thresholds
+    const pixelThreshold = Math.max(8, Math.round(emaAvg * 2.5));
+    const sensitivityRatio = Math.min(
       0.2,
       Math.max(
         0.002,
-        DEFAULT_SENSITIVITY_FACTOR * (emaAvg / (emaAvg + 1)) * 0.01 + 0.005
+        SENSITIVITY_FACTOR * (emaAvg / (emaAvg + 1)) * 0.01 + 0.005
       )
     );
-    const adaptiveSuddenLightThresh = Math.max(
+    const suddenLightThreshold = Math.max(
       12,
       Math.round(Math.max(emaMean * 3, emaMean + 20))
     );
 
-    // build mask and count changed pixels
-    const currMask = new Uint8Array(total);
-    let changedCount = 0;
-    for (let i = 0; i < total; i++) {
-      const d = Math.abs(currGray[i] - bg[i]);
-      if (d > adaptivePixelThreshold) {
-        currMask[i] = 1;
-        changedCount++;
+    // Create binary mask
+    const mask = new Uint8Array(totalPixels);
+    let changedPixels = 0;
+
+    for (let i = 0; i < totalPixels; i++) {
+      const diff = Math.abs(currentGray[i] - background[i]);
+      if (diff > pixelThreshold) {
+        mask[i] = 1;
+        changedPixels++;
       }
     }
-    const ratio = changedCount / total;
 
-    const suddenLight = meanDiff > adaptiveSuddenLightThresh;
-    const motionNow = ratio > adaptiveSensitivityRatio;
+    const changeRatio = changedPixels / totalPixels;
 
-    if (motionNow) motionCounterRef.current++;
-    else motionCounterRef.current = 0;
+    // Detect motion and sudden light changes
+    const suddenLight = meanDiff > suddenLightThreshold;
+    const motionDetected = changeRatio > sensitivityRatio;
+
+    if (motionDetected) {
+      motionCounterRef.current++;
+    } else {
+      motionCounterRef.current = 0;
+    }
 
     const motionConfirmed = motionCounterRef.current >= MOTION_CONFIRM_FRAMES;
-    const shouldEmit = suddenLight ? true : motionConfirmed;
+    const shouldTrigger = suddenLight || motionConfirmed;
 
-    if (shouldEmit) {
-      // prepare before/after/background images
-      const beforeGray = prevGrayRef.current || currGray;
+    if (shouldTrigger) {
+      // Prepare detection images
+      const beforeGray = prevGrayRef.current || currentGray;
 
-      // draw grayscale to captureCanvas for image extraction and zoom
-      if (captureCanvasRef.current) {
-        captureGrayToCanvas(beforeGray, w, h, captureCanvasRef.current);
-      }
-      const beforeDataUrl = captureCanvasRef.current
-        ? captureCanvasRef.current.toDataURL("image/png")
-        : "";
+      convertGrayToCanvas(beforeGray, width, height, captureCanvasRef.current);
+      const beforeDataUrl =
+        captureCanvasRef.current?.toDataURL("image/png") ?? "";
 
-      if (captureCanvasRef.current) {
-        captureGrayToCanvas(currGray, w, h, captureCanvasRef.current);
-      }
-      const afterDataUrl = captureCanvasRef.current
-        ? captureCanvasRef.current.toDataURL("image/png")
-        : "";
+      convertGrayToCanvas(currentGray, width, height, captureCanvasRef.current);
+      const afterDataUrl =
+        captureCanvasRef.current?.toDataURL("image/png") ?? "";
 
-      // background image (current bg)
-      if (captureCanvasRef.current) {
-        captureGrayToCanvas(bg, w, h, captureCanvasRef.current);
-      }
-      const backgroundDataUrl = captureCanvasRef.current
-        ? captureCanvasRef.current.toDataURL("image/png")
-        : "";
+      convertGrayToCanvas(background, width, height, captureCanvasRef.current);
+      const backgroundDataUrl =
+        captureCanvasRef.current?.toDataURL("image/png") ?? "";
 
-      // compute bbox from mask and create marked zoomed image
-      const bbox = bboxFromMask(currMask, w, h);
+      const bbox = bboxFromMask(mask, width, height);
       const markedDataUrl = createZoomedDataURLFromCanvas(
         captureCanvasRef.current,
         bbox,
@@ -347,7 +377,7 @@ const CameraView: React.FC<Props> = ({
         timestamp: new Date().toISOString(),
         suddenLight,
         motion: motionConfirmed,
-        ratio,
+        ratio: changeRatio,
         meanDiff,
         before: beforeDataUrl,
         after: afterDataUrl,
@@ -356,104 +386,102 @@ const CameraView: React.FC<Props> = ({
         bbox: bbox ?? undefined,
       };
 
-      // emit to parent
-      if (typeof onDetection === "function") onDetection(detection);
+      onDetection(detection);
 
-      // beep
       try {
         playBeep();
-      } catch {}
+      } catch (error) {
+        console.warn("Beep failed:", error);
+      }
 
-      // set mask and expiry to avoid bg assimilation
-      lastForegroundMaskRef.current = currMask;
-      maskExpiryAtRef.current = Date.now() + PAUSE_AFTER_DETECTION_MS;
-
-      // pause with countdown for parent
-      startPauseWithCountdown(PAUSE_AFTER_DETECTION_MS);
+      foregroundMaskRef.current = mask;
+      maskExpiryRef.current = Date.now() + PAUSE_AFTER_DETECTION_MS;
+      startPause(PAUSE_AFTER_DETECTION_MS);
     }
 
-    // update background selectively (skip masked pixels while mask active)
-    const mask = lastForegroundMaskRef.current;
-    const nowTs = Date.now();
-    const maskActive = mask && nowTs < maskExpiryAtRef.current;
-    if (!maskActive) {
-      for (let i = 0; i < total; i++) {
-        bg[i] = Math.round((1 - ALPHA_BG) * bg[i] + ALPHA_BG * currGray[i]);
+    // Update background (skip masked pixels during pause)
+    const activeMask = foregroundMaskRef.current;
+    const maskActive = activeMask && Date.now() < maskExpiryRef.current;
+
+    if (maskActive) {
+      for (let i = 0; i < totalPixels; i++) {
+        if (!activeMask[i]) {
+          background[i] = Math.round(
+            (1 - ALPHA_BG) * background[i] + ALPHA_BG * currentGray[i]
+          );
+        }
       }
-      lastForegroundMaskRef.current = null;
     } else {
-      for (let i = 0; i < total; i++) {
-        if (mask[i]) continue;
-        bg[i] = Math.round((1 - ALPHA_BG) * bg[i] + ALPHA_BG * currGray[i]);
+      for (let i = 0; i < totalPixels; i++) {
+        background[i] = Math.round(
+          (1 - ALPHA_BG) * background[i] + ALPHA_BG * currentGray[i]
+        );
       }
+      foregroundMaskRef.current = null;
     }
 
-    prevGrayRef.current = currGray;
-  };
+    prevGrayRef.current = currentGray;
+  }
 
   return (
     <section aria-label="Camera Canvas">
-      <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-        <div>
-          <video
-            ref={videoRef}
-            muted
-            playsInline
-            style={{ width: 480, maxWidth: "100%", borderRadius: 8 }}
-          />
-          <div style={{ marginTop: 8 }}>
-            <div style={{ fontSize: 12, color: "#666" }}>
-              Reference background (initial / last reset):
-            </div>
-            {initialBgDataUrl ? (
-              <img
-                src={initialBgDataUrl}
-                alt="initial background"
-                style={{
-                  width: 160,
-                  height: 120,
-                  objectFit: "cover",
-                  border: "1px solid #ccc",
-                  marginTop: 6,
-                }}
-              />
-            ) : (
-              <div
-                style={{
-                  width: 160,
-                  height: 120,
-                  background: "#eee",
-                  border: "1px solid #ccc",
-                  marginTop: 6,
-                }}
-              />
-            )}
-          </div>
+      <Card className="my-5" ariaLabel="info-box">
+        <span className="flex items-center justify-center gap-1 text-white">
+          Processing:{" "}
+          <span className="font-bold">{runningRef.current ? "ON" : "OFF"}</span>
+        </span>
+        <hr className="my-2" />
+        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-white">
+          <Chip className="bg-[#10B981]">FPS: {PROCESS_FPS}</Chip>
+          <Chip className="bg-[#EF4444]">BG alpha: {ALPHA_BG}</Chip>
+          <Chip className="bg-[#2563EB]">EMA alpha: {EMA_ALPHA}</Chip>
+          <Chip className="bg-[#F59E0B]">
+            Pause (ms): {PAUSE_AFTER_DETECTION_MS}
+          </Chip>
         </div>
+      </Card>
 
-        <div>
-          <canvas ref={canvasRef} style={{ display: "none" }} />
-          <canvas ref={captureCanvasRef} style={{ display: "none" }} />
+      <div className="flex flex-col items-center gap-5 md:flex-row">
+        <video
+          ref={videoRef}
+          muted
+          playsInline
+          className="w-[500px] max-w-full flex-1 rounded-lg"
+        />
 
-          <div
-            style={{
-              background: "#fafafa",
-              padding: 12,
-              borderRadius: 8,
-              border: "1px solid #ddd",
-            }}
-          >
-            <div style={{ marginBottom: 8 }}>
-              <strong>Processing:</strong> {runningRef.current ? "ON" : "OFF"}
-            </div>
-            <div style={{ fontSize: 12, color: "#333" }}>
-              <div>FPS: {PROCESS_FPS}</div>
-              <div>BG alpha: {ALPHA_BG}</div>
-              <div>EMA alpha: {EMA_ALPHA}</div>
-              <div>Pause (ms): {PAUSE_AFTER_DETECTION_MS}</div>
-            </div>
+        <div className="flex flex-col items-center justify-center">
+          <div className="text-xs text-gray-400">
+            Reference background:{" "}
+            <button
+              type="button"
+              onClick={triggerResetBackground}
+              style={{
+                textDecoration: "underline",
+                cursor: "pointer",
+                background: "none",
+                border: "none",
+                color: "#9ca3af",
+                padding: 0,
+              }}
+            >
+              (Reset)
+            </button>
           </div>
+          {initialBgDataUrl ? (
+            <img
+              src={initialBgDataUrl}
+              alt="initial background"
+              className="mt-1 h-[120px] w-40 object-cover"
+            />
+          ) : (
+            <div className="mt-1 h-[120px] w-40 border border-gray-300 bg-gray-300" />
+          )}
         </div>
+      </div>
+
+      <div className="hidden">
+        <canvas ref={canvasRef} />
+        <canvas ref={captureCanvasRef} />
       </div>
     </section>
   );

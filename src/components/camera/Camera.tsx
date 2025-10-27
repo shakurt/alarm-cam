@@ -1,11 +1,9 @@
-// src/components/camera/Camera.tsx
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import CameraView from "@/components/camera/CameraView";
 import DetectionList from "@/components/camera/DetectionList";
 import type { Detection } from "@/types";
 import Checkbox from "@/components/UI/Checkbox";
 import Button from "@/components/UI/Button";
-
 import {
   addDetectionToDB,
   getAllDetectionsFromDB,
@@ -13,207 +11,177 @@ import {
   type StoredDetection,
   exportAllDetections,
 } from "@/utils/idb";
+import { startToastTimer } from "@/utils/toast-timer";
+
+const ENABLE_COUNTDOWN_SECONDS = 5;
+const RESET_BG_COUNTDOWN_SECONDS = 5;
+const MAX_DETECTIONS_IN_MEMORY = 1000;
 
 const Camera: React.FC = () => {
   const [enableRequested, setEnableRequested] = useState(false);
   const [isAlarmEnabled, setIsAlarmEnabled] = useState(false);
-  const [enableCountdown, setEnableCountdown] = useState<number | null>(null);
 
   const [saveToStorage, setSaveToStorage] = useState(false);
+  const [loadingResetBtn, setLoadingResetBtn] = useState(false);
   const [detections, setDetections] = useState<Detection[]>([]);
-  const [resetBgSignal, setResetBgSignal] = useState<number>(0);
-  const [resetCountdown, setResetCountdown] = useState<number | null>(null);
-  const resetTimerRef = useRef<number | null>(null);
 
-  const [includeImagesInExport, setIncludeImagesInExport] = useState(false);
+  // Background reset state
+  const [resetBgSignal, setResetBgSignal] = useState(0);
 
+  // Pause display
   const [pauseRemainingMs, setPauseRemainingMs] = useState<number | null>(null);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const all = await getAllDetectionsFromDB();
-        setDetections(all.reverse());
-      } catch (e) {
-        console.warn("Could not load detections from IndexedDB:", e);
-      }
-    })();
+    loadDetections();
   }, []);
 
-  // start 5s countdown when user checks "enable"
-  useEffect(() => {
-    let timer: number | null = null;
-    if (enableRequested) {
-      setEnableCountdown(5);
-      let remaining = 5;
-      timer = window.setInterval(() => {
-        remaining -= 1;
-        setEnableCountdown(remaining > 0 ? remaining : 0);
-        if (remaining <= 0) {
-          setIsAlarmEnabled(true);
-          setEnableCountdown(null);
-          if (timer) {
-            clearInterval(timer);
-            timer = null;
-          }
-        }
-      }, 1000);
-    } else {
-      setEnableCountdown(null);
-      setIsAlarmEnabled(false);
+  const loadDetections = async () => {
+    try {
+      const all = await getAllDetectionsFromDB();
+      setDetections(all.reverse());
+    } catch (error) {
+      console.warn("Could not load detections from IndexedDB:", error);
     }
-    return () => {
-      if (timer) clearInterval(timer);
-    };
-  }, [enableRequested]);
+  };
 
   const handleDetection = async (detection: Detection) => {
-    setDetections((prev) => [detection, ...prev].slice(0, 1000));
+    // Add to local state
+    setDetections((prev) =>
+      [detection, ...prev].slice(0, MAX_DETECTIONS_IN_MEMORY)
+    );
+
+    // Save to IndexedDB if enabled
     if (saveToStorage) {
       try {
-        const storeItem: StoredDetection = {
-          id: detection.id,
-          timestamp: detection.timestamp,
-          suddenLight: detection.suddenLight,
-          motion: detection.motion,
-          ratio: detection.ratio,
-          meanDiff: detection.meanDiff,
-          before: detection.before,
-          after: detection.after,
+        await addDetectionToDB({
+          ...detection,
           background: detection.background ?? "",
           marked: detection.marked ?? "",
-          bbox: detection.bbox,
-        };
-        await addDetectionToDB(storeItem);
-      } catch (e) {
-        console.warn("Failed to add detection to IndexedDB:", e);
+        } as StoredDetection);
+      } catch (error) {
+        console.warn("Failed to add detection to IndexedDB:", error);
       }
     }
   };
 
   const resetDetections = async () => {
+    setLoadingResetBtn(true);
     setDetections([]);
     try {
       await clearDetectionsInDB();
-    } catch (e) {
-      console.warn("Failed to clear IndexedDB:", e);
+    } catch (error) {
+      console.warn("Failed to clear IndexedDB:", error);
+    } finally {
+      setLoadingResetBtn(false);
     }
   };
 
   const handleExport = async () => {
     try {
       const all = await exportAllDetections();
-      const out = all.map((it) => {
-        if (includeImagesInExport) return it;
-        const { before, after, background, marked, ...rest } = it;
-        return rest;
-      });
-      const blob = new Blob([JSON.stringify(out, null, 2)], {
+      const data = all.map(
+        ({ before, after, background, marked, ...rest }) => rest
+      );
+
+      const blob = new Blob([JSON.stringify(data, null, 2)], {
         type: "application/json",
       });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `alarmcam_export_${new Date().toISOString()}.json`;
-      a.click();
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `alarmcam_export_${new Date().toISOString()}.json`;
+      link.click();
       URL.revokeObjectURL(url);
-    } catch (e) {
-      console.warn("Export failed:", e);
+    } catch (error) {
+      console.warn("Export failed:", error);
     }
   };
 
-  // reset background with 5s countdown
-  const triggerResetBackground = () => {
-    if (resetCountdown !== null) return;
-    setResetCountdown(5);
-    let remaining = 5;
-    resetTimerRef.current = window.setInterval(() => {
-      remaining -= 1;
-      setResetCountdown(remaining > 0 ? remaining : 0);
-      if (remaining <= 0) {
-        setResetBgSignal((s) => s + 1);
-        setResetCountdown(null);
-        if (resetTimerRef.current) {
-          clearInterval(resetTimerRef.current);
-          resetTimerRef.current = null;
-        }
-      }
-    }, 1000);
-  };
+  function triggerResetBackground() {
+    const { taskPromise } = startToastTimer(
+      RESET_BG_COUNTDOWN_SECONDS * 1000,
+      "Background resetting in"
+    );
+    taskPromise.then(() => setResetBgSignal((prev) => prev + 1));
+  }
 
-  const handlePauseChange = (paused: boolean, remainingMs?: number) => {
-    if (!paused) setPauseRemainingMs(null);
-    else setPauseRemainingMs(remainingMs ?? null);
+  function handlePauseChange(paused: boolean, remainingMs?: number) {
+    setPauseRemainingMs(paused ? (remainingMs ?? null) : null);
+  }
+
+  const handleToggleDetection = (isChecked: boolean) => {
+    setEnableRequested(isChecked);
+
+    if (isChecked) {
+      const { taskPromise } = startToastTimer(
+        ENABLE_COUNTDOWN_SECONDS * 1000,
+        "Detection enabling in"
+      );
+      taskPromise.then(() => setIsAlarmEnabled(true));
+    } else setIsAlarmEnabled(false);
   };
 
   return (
-    <section style={{ padding: 12 }}>
-      <h2>alarm-cam</h2>
-
-      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-        <label>
-          <input
-            type="checkbox"
+    <>
+      <section className="mx-auto my-5 max-w-4xl p-5">
+        <div className="mb-5 flex justify-between">
+          <Checkbox
+            className="font-medium"
+            label="Enable Detection"
+            name="enable-detection"
             checked={enableRequested}
-            onChange={(e) => setEnableRequested(e.target.checked)}
-          />{" "}
-          Enable detection (starts after 5s)
-        </label>
-        {enableCountdown !== null && <div>Starting in: {enableCountdown}s</div>}
+            onChange={(isChecked) => handleToggleDetection(isChecked)}
+          />
 
-        <label>
-          <input
-            type="checkbox"
+          <Checkbox
+            className="font-medium"
+            label="Save detections to storage"
+            name="save-detections"
             checked={saveToStorage}
-            onChange={(e) => setSaveToStorage(e.target.checked)}
-          />{" "}
-          Save detections to storage (IndexedDB)
-        </label>
+            onChange={(isChecked) => setSaveToStorage(isChecked)}
+          />
+        </div>
 
-        <button onClick={triggerResetBackground}>Reset Background (5s)</button>
-        {resetCountdown !== null && <div>Reset in: {resetCountdown}s</div>}
-
-        <label>
-          <input
-            type="checkbox"
-            checked={includeImagesInExport}
-            onChange={(e) => setIncludeImagesInExport(e.target.checked)}
-          />{" "}
-          Include images in export
-        </label>
-
-        <button onClick={handleExport}>Export All (IndexedDB → JSON)</button>
-      </div>
-
-      <div style={{ marginTop: 12 }}>
         <CameraView
           onDetection={handleDetection}
           enabled={isAlarmEnabled}
           resetBgSignal={resetBgSignal}
           onPauseChange={handlePauseChange}
           saveToStorage={saveToStorage}
+          triggerResetBackground={triggerResetBackground}
         />
-      </div>
 
-      <div style={{ marginTop: 12 }}>
-        {pauseRemainingMs !== null && (
-          <div>
-            Paused after detection — remaining:{" "}
-            {Math.ceil((pauseRemainingMs ?? 0) / 1000)}s
+        {/* {pauseRemainingMs !== null && (
+      <div>
+        Paused after detection — remaining:{" "}
+        {Math.ceil((pauseRemainingMs ?? 0) / 1000)}s
+      </div>
+    )} */}
+
+        <div aria-label="Buttons of Detect Section" className="mt-5">
+          <DetectionList detections={detections} />
+          <div className="mt-2 flex items-center justify-between gap-5">
+            <Button
+              type="button"
+              onClick={resetDetections}
+              disabled={!detections.length}
+              className="bg-secondary hover:bg-secondary/80"
+              loading={loadingResetBtn}
+            >
+              Clear List
+            </Button>
+
+            <Button
+              type="button"
+              onClick={handleExport}
+              disabled={!detections.length}
+            >
+              Export All
+            </Button>
           </div>
-        )}
-      </div>
-
-      <div style={{ marginTop: 12 }}>
-        <DetectionList detections={detections} />
-      </div>
-
-      <div style={{ marginTop: 12 }}>
-        <button onClick={resetDetections} disabled={!detections.length}>
-          Clear List
-        </button>
-      </div>
-    </section>
+        </div>
+      </section>
+    </>
   );
 };
 

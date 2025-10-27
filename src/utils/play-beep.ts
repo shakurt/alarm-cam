@@ -1,21 +1,38 @@
+const BEEP_FREQUENCY = 880; // Hz (A5 note)
+const BEEP_DURATION = 400; // milliseconds
+
 const playBeep = () => {
   try {
-    const aCtx = new AudioContext();
-    const osc = aCtx.createOscillator();
-    const g = aCtx.createGain();
-    osc.type = "sine";
-    osc.frequency.value = 880;
-    osc.connect(g);
-    g.connect(aCtx.destination);
-    g.gain.value = 0.0001;
-    osc.start();
-    g.gain.exponentialRampToValueAtTime(0.2, aCtx.currentTime + 0.02);
+    const audioContext = new AudioContext();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+
+    // Configure oscillator
+    oscillator.type = "sine";
+    oscillator.frequency.value = BEEP_FREQUENCY;
+
+    // Connect audio nodes
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+
+    // Fade in quickly to avoid click
+    gainNode.gain.value = 0.0001;
+    oscillator.start();
+    gainNode.gain.exponentialRampToValueAtTime(
+      0.2,
+      audioContext.currentTime + 0.02
+    );
+
+    // Fade out and stop
     setTimeout(() => {
-      g.gain.exponentialRampToValueAtTime(0.0001, aCtx.currentTime + 0.12);
-      osc.stop(aCtx.currentTime + 0.14);
-    }, 400);
-  } catch {
-    console.log("beep"); // as fallback
+      gainNode.gain.exponentialRampToValueAtTime(
+        0.0001,
+        audioContext.currentTime + 0.12
+      );
+      oscillator.stop(audioContext.currentTime + 0.14);
+    }, BEEP_DURATION);
+  } catch (error) {
+    console.log("beep"); // Fallback when AudioContext not available
   }
 };
 
