@@ -1,36 +1,73 @@
-# Webcam Motion Detection System
+# React + TypeScript + Vite
 
-A simple AI-based motion detection system using computer vision techniques. Built for educational purposes with vanilla JavaScript.
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
-## Overview
-This project demonstrates basic **computer vision** and **motion detection** algorithms using webcam input. The system analyzes video frames in real-time to detect movement and triggers an audio alarm.
+Currently, two official plugins are available:
 
-## How It Works
-1. **Frame Capture**: Gets video frames from webcam using HTML5 Canvas
-2. **Grayscale Conversion**: Converts color frames to grayscale for processing
-3. **Frame Comparison**: Compares current frame with previous frame pixel-by-pixel
-4. **Motion Detection**: Counts changed pixels above threshold to detect motion
-5. **Alarm Trigger**: Plays audio alert when motion exceeds sensitivity level
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
 
-## Algorithm Details
-- **Grayscale Formula**: `0.299*R + 0.587*G + 0.114*B`
-- **Pixel Threshold**: 30 intensity units difference
-- **Motion Sensitivity**: 0.5% of total pixels must change
-- **Processing Rate**: ~15 FPS
+## React Compiler
 
-## Usage
-1. Clone the repository
-2. Open `index.html` in your browser
-3. Allow camera access
-4. Move in front of camera to trigger alarm
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
 
-## Files
-- `index.html` - Main webpage
-- `app.js` - Motion detection algorithm
-- `style.css` - Basic styling
+## Expanding the ESLint configuration
 
-## AI/CV Concepts Demonstrated
-- **Image Processing**: Pixel manipulation and grayscale conversion
-- **Frame Differencing**: Basic motion detection technique
-- **Threshold-based Detection**: Binary classification of motion/no-motion
-- **Real-time Processing**: Live video stream analysis
+If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+
+```js
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
+
+      // Remove tseslint.configs.recommended and replace with this
+      tseslint.configs.recommendedTypeChecked,
+      // Alternatively, use this for stricter rules
+      tseslint.configs.strictTypeChecked,
+      // Optionally, add this for stylistic rules
+      tseslint.configs.stylisticTypeChecked,
+
+      // Other configs...
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
+```
+
+You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+
+```js
+// eslint.config.js
+import reactX from 'eslint-plugin-react-x'
+import reactDom from 'eslint-plugin-react-dom'
+
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
+      // Enable lint rules for React
+      reactX.configs['recommended-typescript'],
+      // Enable lint rules for React DOM
+      reactDom.configs.recommended,
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
+```
