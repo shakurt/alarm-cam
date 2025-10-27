@@ -4,7 +4,7 @@ export type UserInfo = {
   // alarmcam_detections: Detection[];
 };
 
-export interface Detection {
+export type Detection = {
   id: number;
   timestamp: string;
   suddenLight: boolean;
@@ -13,7 +13,10 @@ export interface Detection {
   meanDiff: number;
   before: string;
   after: string;
-}
+  background: string;
+  marked?: string;
+  bbox?: { x: number; y: number; w: number; h: number };
+};
 
 export interface CameraViewProps {
   onDetection: (detection: Detection) => void;

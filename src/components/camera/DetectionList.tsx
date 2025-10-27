@@ -1,39 +1,91 @@
+// src/components/camera/DetectionList.tsx
+import React from "react";
 import type { Detection } from "@/types";
-import type React from "react";
 
-interface DetectionListProps {
+interface Props {
   detections: Detection[];
 }
 
-const DetectionList: React.FC<DetectionListProps> = ({ detections }) => {
+const DetectionList: React.FC<Props> = ({ detections }) => {
   return (
-    <div className="max-h-96 overflow-auto rounded border-2 border-gray-500 p-2">
+    <div
+      style={{
+        maxHeight: 420,
+        overflowY: "auto",
+        border: "1px solid #ddd",
+        padding: 8,
+      }}
+    >
       <h3>Detections ({detections.length})</h3>
-      {detections.map((item: Detection) => (
-        <div key={item.id} className="flex gap-2 border-b border-gray-500 p-2">
-          <div className="w-36">
-            <div className="text-xs">
-              {new Date(item.timestamp).toLocaleString()}
+      {detections.map((d) => (
+        <div
+          key={d.id}
+          style={{
+            display: "flex",
+            gap: 12,
+            padding: 8,
+            borderBottom: "1px solid #eee",
+          }}
+        >
+          <div style={{ minWidth: 180 }}>
+            <div style={{ fontSize: 12 }}>
+              {new Date(d.timestamp).toLocaleString()}
             </div>
-            <div className="text-xs text-gray-600">
-              {item.motion ? "Motion" : ""}{" "}
-              {item.suddenLight ? " / Sudden light" : ""}
+            <div style={{ fontSize: 12, color: "#666" }}>
+              {d.motion ? "Motion" : ""}{" "}
+              {d.suddenLight ? " / Sudden light" : ""}
             </div>
-            <div className="text-xs text-gray-400">
-              ratio: {(item.ratio * 100).toFixed(2)}% meanDiff:{" "}
-              {item.meanDiff.toFixed(1)}
+            <div style={{ fontSize: 11, color: "#999" }}>
+              ratio: {(d.ratio * 100).toFixed(2)}% meanDiff:{" "}
+              {d.meanDiff.toFixed(1)}
             </div>
+            {d.bbox && (
+              <div style={{ fontSize: 11, color: "#999" }}>
+                area: x:{d.bbox.x} y:{d.bbox.y} w:{d.bbox.w} h:{d.bbox.h}
+              </div>
+            )}
           </div>
-          <div className="flex gap-6">
+
+          <div style={{ display: "flex", gap: 8 }}>
             <img
-              src={item.before}
+              src={d.before}
               alt="before"
-              className="h-20 w-30 border border-gray-500 object-cover"
+              style={{
+                width: 120,
+                height: 90,
+                objectFit: "cover",
+                border: "1px solid #ccc",
+              }}
             />
             <img
-              src={item.after}
+              src={d.after}
               alt="after"
-              className="h-20 w-30 border border-gray-500 object-cover"
+              style={{
+                width: 120,
+                height: 90,
+                objectFit: "cover",
+                border: "1px solid #ccc",
+              }}
+            />
+            <img
+              src={d.background}
+              alt="background"
+              style={{
+                width: 120,
+                height: 90,
+                objectFit: "cover",
+                border: "1px solid #ccc",
+              }}
+            />
+            <img
+              src={d.marked ?? d.after}
+              alt="marked"
+              style={{
+                width: 120,
+                height: 90,
+                objectFit: "cover",
+                border: "2px solid #f55",
+              }}
             />
           </div>
         </div>
