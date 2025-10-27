@@ -7,10 +7,7 @@ import {
   type ReactNode,
 } from "react";
 
-type UserInfo = {
-  email: string;
-  sendEmail: boolean;
-};
+import type { UserInfo } from "@/types";
 
 type UserContextType = {
   userInfo: UserInfo | null;

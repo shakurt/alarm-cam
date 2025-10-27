@@ -1,69 +1,45 @@
-import React from "react";
+import type { Detection } from "@/types";
+import type React from "react";
 
-/*
- DetectionList
- - receives an array of detection objects
- - shows timestamp, tags (motion / sudden light), and before/after thumbnails
-*/
+interface DetectionListProps {
+  detections: Detection[];
+}
 
-export default function DetectionList({ detections }) {
+const DetectionList: React.FC<DetectionListProps> = ({ detections }) => {
   return (
-    <div
-      style={{
-        maxHeight: 400,
-        overflowY: "auto",
-        border: "1px solid #ddd",
-        padding: 8,
-      }}
-    >
+    <div className="max-h-96 overflow-auto rounded border-2 border-gray-500 p-2">
       <h3>Detections ({detections.length})</h3>
-      {detections.map((item) => (
-        <div
-          key={item.id}
-          style={{
-            borderBottom: "1px solid #eee",
-            padding: 6,
-            display: "flex",
-            gap: 8,
-          }}
-        >
-          <div style={{ width: 140 }}>
-            <div style={{ fontSize: 12 }}>
+      {detections.map((item: Detection) => (
+        <div key={item.id} className="flex gap-2 border-b border-gray-500 p-2">
+          <div className="w-36">
+            <div className="text-xs">
               {new Date(item.timestamp).toLocaleString()}
             </div>
-            <div style={{ fontSize: 12, color: "#666" }}>
+            <div className="text-xs text-gray-600">
               {item.motion ? "Motion" : ""}{" "}
               {item.suddenLight ? " / Sudden light" : ""}
             </div>
-            <div style={{ fontSize: 11, color: "#999" }}>
+            <div className="text-xs text-gray-400">
               ratio: {(item.ratio * 100).toFixed(2)}% meanDiff:{" "}
               {item.meanDiff.toFixed(1)}
             </div>
           </div>
-          <div style={{ display: "flex", gap: 6 }}>
+          <div className="flex gap-6">
             <img
               src={item.before}
               alt="before"
-              style={{
-                width: 120,
-                height: 90,
-                objectFit: "cover",
-                border: "1px solid #ccc",
-              }}
+              className="h-20 w-30 border border-gray-500 object-cover"
             />
             <img
               src={item.after}
               alt="after"
-              style={{
-                width: 120,
-                height: 90,
-                objectFit: "cover",
-                border: "1px solid #ccc",
-              }}
+              className="h-20 w-30 border border-gray-500 object-cover"
             />
           </div>
         </div>
       ))}
     </div>
   );
-}
+};
+
+export default DetectionList;

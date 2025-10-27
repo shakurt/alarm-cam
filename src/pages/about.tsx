@@ -1,6 +1,6 @@
 const AboutPage = () => {
   return (
-    <div id="about" className="mx-auto max-w-4xl p-6">
+    <div id="about" className="container mx-auto my-5 max-w-4xl">
       <h1 className="text-dark-charcoal mb-6 text-3xl font-bold">
         About This Project
       </h1>

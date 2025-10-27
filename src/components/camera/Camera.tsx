@@ -1,12 +1,16 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
+
 import CameraView from "@/components/camera/CameraView";
 import DetectionList from "@/components/camera/DetectionList";
+import type { Detection } from "@/types";
+import Checkbox from "@/components/UI/Checkbox";
+import Button from "@/components/UI/Button";
 
-export default function App() {
-  const [enabled, setEnabled] = useState(false);
+const Camera = () => {
+  const [isAlarmEnabled, setIsAlarmEnabled] = useState(false);
   const [saveToStorage, setSaveToStorage] = useState(false);
-  const [detections, setDetections] = useState(() => {
-    // load from localStorage on start
+  const [detections, setDetections] = useState<Detection[]>(() => {
+    // Getting all detections from localStorage at startup
     try {
       const raw = localStorage.getItem("alarmcam_detections");
       return raw ? JSON.parse(raw) : [];
@@ -15,7 +19,7 @@ export default function App() {
     }
   });
 
-  // whenever detections change and saveToStorage is true, persist
+  // Whenever detections change and saveToStorage is true, save data to localStorage
   useEffect(() => {
     if (saveToStorage) {
       try {
@@ -26,58 +30,56 @@ export default function App() {
     }
   }, [detections, saveToStorage]);
 
-  function handleDetection(detection) {
+  const handleDetection = (detection: Detection) => {
     // add new detection at top
-    setDetections((prev) => [detection, ...prev].slice(0, 200)); // cap to 200 items locally
-  }
+    setDetections((prev: Detection[]) => [detection, ...prev].slice(0, 200)); // cap to 200 items locally
+  };
+
+  const resetDetections = () => {
+    setDetections([]);
+    localStorage.removeItem("alarmcam_detections");
+  };
 
   return (
-    <div style={{ padding: 12 }}>
-      <h2>alarm-cam (React)</h2>
+    <section className="d-flex container my-5 max-w-xl gap-3">
+      <div className="sm:flex sm:items-center sm:justify-between">
+        <Checkbox
+          label="Enable detection (starts after 5s)"
+          name="enable-detection"
+          checked={isAlarmEnabled}
+          onChange={setIsAlarmEnabled}
+        />
 
-      <div style={{ display: "flex", gap: 24 }}>
-        <div style={{ flex: 1 }}>
-          <label>
-            <input
-              type="checkbox"
-              checked={enabled}
-              onChange={(e) => setEnabled(e.target.checked)}
-            />{" "}
-            Enable detection (starts after 5s)
-          </label>
-          <br />
-          <label>
-            <input
-              type="checkbox"
-              checked={saveToStorage}
-              onChange={(e) => setSaveToStorage(e.target.checked)}
-            />{" "}
-            Save detections to localStorage
-          </label>
-
-          <div style={{ marginTop: 12 }}>
-            <CameraView
-              onDetection={handleDetection}
-              enabled={enabled}
-              saveToStorage={saveToStorage}
-            />
-          </div>
-        </div>
-
-        <div style={{ width: 380 }}>
-          <DetectionList detections={detections} />
-          <div style={{ marginTop: 8 }}>
-            <button
-              onClick={() => {
-                setDetections([]);
-                localStorage.removeItem("alarmcam_detections");
-              }}
-            >
-              Clear list
-            </button>
-          </div>
-        </div>
+        <Checkbox
+          label="Save detections to localStorage"
+          name="save-detections"
+          checked={saveToStorage}
+          onChange={setSaveToStorage}
+        />
       </div>
-    </div>
+
+      <div className="mt-5 flex items-center justify-center">
+        <CameraView
+          onDetection={handleDetection}
+          enabled={isAlarmEnabled}
+          saveToStorage={saveToStorage}
+        />
+      </div>
+
+      <section aria-label="Detection List" className="mt-5">
+        <DetectionList detections={detections} />
+
+        <Button
+          className="bg-secondary disabled:bg-secondary mt-2"
+          type="button"
+          onClick={resetDetections}
+          disabled={!detections.length}
+        >
+          Clear List
+        </Button>
+      </section>
+    </section>
   );
-}
+};
+
+export default Camera;
