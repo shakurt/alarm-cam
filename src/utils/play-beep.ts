@@ -31,7 +31,7 @@ const playBeep = () => {
       );
       oscillator.stop(audioContext.currentTime + 0.14);
     }, BEEP_DURATION);
-  } catch (error) {
+  } catch {
     console.log("beep"); // Fallback when AudioContext not available
   }
 };

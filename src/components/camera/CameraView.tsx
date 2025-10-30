@@ -1,14 +1,15 @@
 import React, { useEffect, useRef, useState } from "react";
+
+import Chip from "@/components/UI/Chip";
 import type { CameraViewProps, Detection } from "@/types";
-import playBeep from "@/utils/play-beep";
 import {
   getGrayFromImageData,
   meanBrightness,
-  captureFrameDataURL,
   bboxFromMask,
   createZoomedDataURLFromCanvas,
 } from "@/utils/frames";
-import Chip from "@/components/UI/Chip";
+import playBeep from "@/utils/play-beep";
+
 import Card from "../UI/Card";
 
 // Processing configuration
@@ -105,7 +106,7 @@ const CameraView: React.FC<Props> = ({
       stopProcessing();
       stopCameraStream();
     };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Start/stop processing when enabled changes
   useEffect(() => {

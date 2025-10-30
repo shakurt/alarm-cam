@@ -1,9 +1,3 @@
-// src/utils/frames.ts
-// Utility functions for frame/grayscale handling, bbox extraction and zoomed images.
-
-/**
- * Convert ImageData (RGBA) to a grayscale Uint8ClampedArray (one byte per pixel).
- */
 export function getGrayFromImageData(imageData: ImageData): Uint8ClampedArray {
   const pixels = imageData.data;
   const pixelCount = imageData.width * imageData.height;

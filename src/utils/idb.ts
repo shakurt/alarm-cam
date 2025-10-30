@@ -1,4 +1,3 @@
-// src/utils/idb.ts
 export type StoredDetection = {
   id: number;
   timestamp: string;

@@ -1,4 +1,5 @@
 import type { Detection } from "@/types";
+
 import Chip from "../UI/Chip";
 
 interface Props {

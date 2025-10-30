@@ -1,4 +1,8 @@
 import { Routes, Route } from "react-router";
+import { toastConfig } from "react-simple-toasts";
+import "react-simple-toasts/dist/style.css";
+import "react-simple-toasts/dist/theme/dark.css";
+import "react-simple-toasts/dist/theme/success.css";
 
 import Footer from "@/components/Footer";
 import Header from "@/components/Header";
@@ -6,11 +10,6 @@ import { UserProvider } from "@/context/userContext";
 import AboutPage from "@/pages/about";
 import HomePage from "@/pages/home";
 import NotFoundPage from "@/pages/not-found";
-import "react-simple-toasts/dist/style.css";
-import "react-simple-toasts/dist/theme/dark.css";
-import "react-simple-toasts/dist/theme/success.css";
-
-import { toastConfig } from "react-simple-toasts";
 
 toastConfig({
   maxVisibleToasts: 3,

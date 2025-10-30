@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+
 import CameraView from "@/components/camera/CameraView";
 import DetectionList from "@/components/camera/DetectionList";
-import type { Detection } from "@/types";
-import Checkbox from "@/components/UI/Checkbox";
 import Button from "@/components/UI/Button";
+import Checkbox from "@/components/UI/Checkbox";
+import type { Detection } from "@/types";
 import {
   addDetectionToDB,
   getAllDetectionsFromDB,
@@ -27,9 +28,7 @@ const Camera: React.FC = () => {
 
   // Background reset state
   const [resetBgSignal, setResetBgSignal] = useState(0);
-
-  // Pause display
-  const [pauseRemainingMs, setPauseRemainingMs] = useState<number | null>(null);
+  const pauseToastShownRef = useRef(false);
 
   useEffect(() => {
     loadDetections();
@@ -80,7 +79,13 @@ const Camera: React.FC = () => {
     try {
       const all = await exportAllDetections();
       const data = all.map(
-        ({ before, after, background, marked, ...rest }) => rest
+        ({
+          before: _before,
+          after: _after,
+          background: _background,
+          marked: _marked,
+          ...rest
+        }) => rest
       );
 
       const blob = new Blob([JSON.stringify(data, null, 2)], {
@@ -106,7 +111,12 @@ const Camera: React.FC = () => {
   }
 
   function handlePauseChange(paused: boolean, remainingMs?: number) {
-    setPauseRemainingMs(paused ? (remainingMs ?? null) : null);
+    if (paused && remainingMs && !pauseToastShownRef.current) {
+      pauseToastShownRef.current = true;
+      startToastTimer(remainingMs, "Detection paused, resuming in");
+    } else if (!paused) {
+      pauseToastShownRef.current = false;
+    }
   }
 
   const handleToggleDetection = (isChecked: boolean) => {
@@ -150,13 +160,6 @@ const Camera: React.FC = () => {
           saveToStorage={saveToStorage}
           triggerResetBackground={triggerResetBackground}
         />
-
-        {/* {pauseRemainingMs !== null && (
-      <div>
-        Paused after detection — remaining:{" "}
-        {Math.ceil((pauseRemainingMs ?? 0) / 1000)}s
-      </div>
-    )} */}
 
         <div aria-label="Buttons of Detect Section" className="mt-5">
           <DetectionList detections={detections} />
