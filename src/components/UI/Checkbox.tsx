@@ -18,7 +18,7 @@ const Checkbox: React.FC<CheckboxProps> = ({
   name,
 }) => {
   const checkboxClass = twMerge(
-    "h-4 w-4 cursor-pointer rounded border-card bg-bg text-primary transition-all focus:outline-none",
+    "h-4 w-4 cursor-pointer rounded border-card bg-bg text-primary transition-all focus:outline-none accent-primary",
     className
   );
 

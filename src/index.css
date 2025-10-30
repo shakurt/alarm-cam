@@ -9,6 +9,7 @@
 
 html,
 body {
+  font-family: "Poppins", sans-serif;
   height: 100%;
 }
 
@@ -17,7 +18,7 @@ body {
 }
 
 .container {
-  @apply mx-auto px-4 sm:px-0;
+  @apply mx-auto px-4;
 }
 
 a.active {

@@ -7,7 +7,7 @@ import importPlugin from "eslint-plugin-import";
 import globals from "globals";
 
 const eslintConfig = [
-  { ignores: ["dist", "node_modules", "build", "*.config.js"] },
+  { ignores: ["dist", "node_modules", "build", "*.config.js", ".vite/**"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

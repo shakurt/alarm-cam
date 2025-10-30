@@ -9,7 +9,7 @@ const Header = () => {
 
   return (
     <header className="bg-card py-3">
-      <div className="container flex items-center justify-between">
+      <div className="container flex max-w-5xl items-center justify-between px-3">
         <button
           type="button"
           onClick={() => navigate("/")}
